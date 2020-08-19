@@ -11,10 +11,10 @@ import org.firstinspires.ftc.robotcore.external.navigation.*;
 
 
 /**
- * Example Autonomous OpMode. Demonstrates driving forward
+ * Example Wall Following OpMode. Demonstrates using left distance center and gyroscope to follow wall and turn at corner
  */
 @Autonomous(name = "wall following", group = "SB^2 Mechanum Wheel")
-public class LineFollowing extends LinearOpMode {
+public class WallFollowing extends LinearOpMode {
 
     // Define class variables here, string names in "" need to match hardware configuration
     private final DcMotorEx front_left = (DcMotorEx)hardwareMap.dcMotor.get("front_left_motor");
@@ -47,22 +47,24 @@ public class LineFollowing extends LinearOpMode {
 
         while (opModeIsActive())
         {
+            // Check if almost at top wall
             if (front_distance.getDistance(DistanceUnit.CM) < goal_distance)
             {
-                // Turn
                 // Get heading
                 double heading = 0;
                 Orientation orientation = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS);
                 heading = orientation.firstAngle * 180.0 / Math.PI;
                 telemetry.addData("heading", heading);
                 telemetry.update();
-//
+
+                // Check alignment with goal heading
                 while (heading > goal_heading)
                 {
                     orientation = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS);
                     telemetry.addData("Heading", " %.1f", orientation.firstAngle * 180.0 / Math.PI);
                     telemetry.update();
                     heading = orientation.firstAngle * 180.0 / Math.PI;
+                    // Turn right until aligned with goal heading
                     front_left.setPower(1);
                     back_left.setPower(1);
                     front_right.setPower(-1);
@@ -74,6 +76,7 @@ public class LineFollowing extends LinearOpMode {
                 // Get distance from left wall
                 double current_distance = left_distance.getDistance(DistanceUnit.CM);
 
+                // Optional: scale power based on error
                 //double distance_error = current_distance - goal_distance;
                 if (current_distance > goal_distance) {
                     // go left
@@ -103,35 +106,5 @@ public class LineFollowing extends LinearOpMode {
                 sleep(50);
             }
         }
-    }
-
-    public String getColor()
-    {
-        String color = "unknown";
-        double red = colorSensor.red();
-        double green = colorSensor.green();
-        double blue = colorSensor.blue();
-
-        if (green > 200)
-        {
-            color = "yellow";
-        }
-        else if (red > 200)
-        {
-            color = "red";
-        }
-        else if (blue > 100)
-        {
-            color = "blue";
-        }
-
-        telemetry.addData("red", colorSensor.red());
-        telemetry.addData("green", colorSensor.green());
-        telemetry.addData("blue", colorSensor.blue());
-        telemetry.addData("color", color);
-        telemetry.update();
-
-        return color;
-
     }
 }

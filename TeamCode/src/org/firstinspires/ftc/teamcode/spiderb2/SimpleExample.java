@@ -7,7 +7,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 /**
  * Example Autonomous OpMode. Demonstrates driving forward
  */
-@Autonomous(name = "drive forward", group = "SB^2 Two Wheel")
+@Autonomous(name = "simple drive forward", group = "SB^2 Two Wheel")
 public class SimpleExample extends LinearOpMode {
 
     // Define class variables here, string names in "" need to match hardware configuration

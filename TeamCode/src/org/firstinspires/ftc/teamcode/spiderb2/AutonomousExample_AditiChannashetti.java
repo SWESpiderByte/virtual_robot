@@ -12,7 +12,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
  *
  */
 @Autonomous(name = "two wheel autonomous example", group = "SB^2 Two Wheel")
-public class AutonomousExample extends LinearOpMode {
+public class AutonomousExample_AditiChannashetti extends LinearOpMode {
 
     // Define class variables here - will accessible in all AutonomousExample functions
 

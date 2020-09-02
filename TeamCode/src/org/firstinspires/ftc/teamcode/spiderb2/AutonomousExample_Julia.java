@@ -2,17 +2,16 @@ package org.firstinspires.ftc.teamcode.spiderb2;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.*;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.Servo;
 
 /**
  * Example Autonomous OpMode. Demonstrates open-loop control of motors & servos
  *
  */
 @Autonomous(name = "two wheel autonomous example", group = "SB^2 Two Wheel")
-public class AutonomousExample extends LinearOpMode {
+public class AutonomousExample_Julia extends LinearOpMode {
 
     // Define class variables here - will accessible in all AutonomousExample functions
 
@@ -34,21 +33,23 @@ public class AutonomousExample extends LinearOpMode {
 
         // Code pauses here until the "Start" button is pressed on the Driver Station phone or simulation
         waitForStart();
+        for(int at = 0; at < 4; at += 1) {
+            // 1) Move forward full speed
+            // Left and right wheels full power forward
+            printMessage("Moving forward");
+            left.setPower(1);
+            right.setPower(1);
+            sleep(1000);
 
-        // 1) Move forward full speed
-        // Left and right wheels full power forward
-        printMessage("Moving forward");
-        left.setPower(1);
-        right.setPower(1);
-        sleep(1000);
+            // 2) Turn left while moving forward
+            // Left wheel half power forward, right wheel full power forward
+            printMessage("Turning left");
+            left.setPower(0.5);
+            right.setPower(1.0);
+            sleep(3000);
+        }
 
-        // 2) Turn left while moving forward
-        // Left wheel half power forward, right wheel full power forward
-        printMessage("Turning left");
-        left.setPower(0.5);
-        right.setPower(1.0);
-        sleep(3000);
-
+        /*
         // 3) Turn right in place
         // Left wheel forward, right wheel backward
         printMessage("Turning right in place");
@@ -82,8 +83,8 @@ public class AutonomousExample extends LinearOpMode {
             // What position is being set for step i? position = 0.1 * i;
             // e.g. i = 3, position = 0.1 + 0.1 + 0.1 = 0.1 * 3 = 0.1 * i
             position += 0.1;
+            */
         }
-    }
 
     /**
      * This is a helper method to send a telemetry message to

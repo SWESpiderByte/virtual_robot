@@ -11,8 +11,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
  * Example Autonomous OpMode. Demonstrates open-loop control of motors & servos
  *
  */
-@Autonomous(name = "two wheel autonomous example", group = "SB^2 Two Wheel")
-public class AutonomousExample extends LinearOpMode {
+@Autonomous(name = "AutonomousExample_Pavni", group = "SB^2 Two Wheel")
+public class AutonomousExample_Pavni extends LinearOpMode {
 
     // Define class variables here - will accessible in all AutonomousExample functions
 

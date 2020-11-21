@@ -11,6 +11,8 @@ import javafx.collections.ObservableList;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Group;
 import javafx.scene.control.*;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.shape.Polyline;
@@ -33,11 +35,10 @@ import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.robotcore.hardware.DcMotorImpl;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import virtual_robot.controller.robots.classes.MechanumBot;
-import virtual_robot.controller.robots.classes.TwoWheelBot;
+import virtual_robot.keyboard.KeyState;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
-import java.net.URL;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -66,8 +67,8 @@ public class VirtualRobotController {
     //Virtual Hardware
     private HardwareMap hardwareMap = null;
     private VirtualBot bot = null;
-    GamePad gamePad1 = new GamePad();
-    GamePad gamePad2 = new GamePad();
+    Gamepad gamePad1 = new Gamepad();
+    Gamepad gamePad2 = new Gamepad();
     GamePadHelper gamePadHelper = null;
     ScheduledExecutorService gamePadExecutorService = Executors.newSingleThreadScheduledExecutor();
 
@@ -102,11 +103,23 @@ public class VirtualRobotController {
     //Random Number Generator
     private Random random = new Random();
 
-    //Motor Error Slider Listener
+    //KeyState
+    private KeyState keyState = new KeyState();
+
+    /*
+     * Motor slider listener
+     *
+     * The values set for random error fraction and systematic error fraction may look reversed, but they aren't.
+     * Systematic error fraction is set randomly for each motor when the slider is changed, but then remains the
+     * same for that motor until the slider is changed again. Random error fraction is set for each motor when the
+     * slider is changed, but then (in the DcMotorImpl class) gets multiplied by a new random number during each motor
+     * update cycle.
+     */
     private ChangeListener<Number> sliderChangeListener = new ChangeListener<Number>() {
         @Override
         public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
             for (DcMotor motor: hardwareMap.dcMotor) {
+                if (!(motor instanceof DcMotorImpl)) continue;      //Now that DeadWheelEncoder has been added, not all "DcMotor" are "DcMotorImpl"
                 ((DcMotorImpl)motor).setRandomErrorFrac(sldRandomMotorError.getValue());
                 ((DcMotorImpl)motor).setSystematicErrorFrac(sldSystematicMotorError.getValue() * 2.0 * (0.5 - random.nextDouble()));
                 ((DcMotorImpl)motor).setInertia(1.0 - Math.pow(10.0, -sldMotorInertia.getValue()));
@@ -140,6 +153,9 @@ public class VirtualRobotController {
         pathLine.setStrokeWidth(2);
         pathLine.setVisible(false);
         fieldPane.getChildren().addAll(new Group(pathRect, pathLine));
+
+        addConstraintMasks();
+
         sldRandomMotorError.valueProperty().addListener(sliderChangeListener);
         sldSystematicMotorError.valueProperty().addListener(sliderChangeListener);
         sldMotorInertia.valueProperty().addListener(sliderChangeListener);
@@ -164,6 +180,37 @@ public class VirtualRobotController {
             gamePadHelper = new RealGamePadHelper();
         }
         gamePadExecutorService.scheduleAtFixedRate(gamePadHelper, 0, 20, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     *  "Gray out" part of the field based on the field constraints (X_MIN_FRACTION, X_MAX_FRACTION,
+     *  Y_MIN_FRACTION, Y_MAX_FRACTION values)
+     */
+    private void addConstraintMasks(){
+        if (Config.X_MIN_FRACTION > 0){
+            Rectangle rect = new Rectangle(fieldWidth*Config.X_MIN_FRACTION, fieldWidth);
+            rect.setFill(Color.color(0.2, 0.2, 0.2, 0.75));
+            fieldPane.getChildren().add(rect);
+        }
+        if (Config.X_MAX_FRACTION < 1){
+            Rectangle rect = new Rectangle(fieldWidth*(1-Config.X_MAX_FRACTION), fieldWidth);
+            rect.setTranslateX(fieldWidth*Config.X_MAX_FRACTION);
+            rect.setFill(Color.color(0.2, 0.2, 0.2, 0.75));
+            fieldPane.getChildren().add(rect);
+        }
+        if (Config.Y_MIN_FRACTION > 0){
+            Rectangle rect = new Rectangle(fieldWidth*(Config.X_MAX_FRACTION-Config.X_MIN_FRACTION), fieldWidth*Config.Y_MIN_FRACTION);
+            rect.setTranslateX(fieldWidth*Config.X_MIN_FRACTION);
+            rect.setTranslateY(fieldWidth*(1-Config.Y_MIN_FRACTION));
+            rect.setFill(Color.color(0.2, 0.2, 0.2, 0.75));
+            fieldPane.getChildren().add(rect);
+        }
+        if (Config.Y_MAX_FRACTION < 1){
+            Rectangle rect = new Rectangle(fieldWidth*(Config.X_MAX_FRACTION-Config.X_MIN_FRACTION), fieldWidth*(1-Config.Y_MAX_FRACTION));
+            rect.setTranslateX(fieldWidth*Config.X_MIN_FRACTION);
+            rect.setFill(Color.color(0.2, 0.2, 0.2, 0.75));
+            fieldPane.getChildren().add(rect);
+        }
     }
 
     private void setupCbxRobotConfigs(){
@@ -228,6 +275,36 @@ public class VirtualRobotController {
         }
     }
 
+    private String getNameFromAnnotationOrOpmode(Class c){
+        String name = "";
+        Annotation a1 = c.getAnnotation(TeleOp.class);
+        if(a1 != null){
+            name = ((TeleOp)a1).name();
+        }else{
+            a1 = c.getAnnotation(Autonomous.class);
+            if(a1 != null){
+                name = ((Autonomous)a1).name();
+            }
+        }
+        if(name.isEmpty()){
+            name = c.getSimpleName();
+        }
+        return name;
+    }
+    private String getGroupFromAnnotationOrOpmode(Class c){
+        String group = null;
+        Annotation a1 = c.getAnnotation(TeleOp.class);
+        if(a1 != null){
+            group = ((TeleOp)a1).group();
+        }else{
+            a1 = c.getAnnotation(Autonomous.class);
+            if(a1 != null){
+                group = ((Autonomous)a1).group();
+            }
+        }
+        return group;
+    }
+
     private void setupCbxOpModes(){
         //Reflections reflections = new Reflections(VirtualRobotApplication.class.getClassLoader());
         Reflections reflections = new Reflections("org.firstinspires.ftc.teamcode");
@@ -244,21 +321,8 @@ public class VirtualRobotController {
         nonDisabledOpModeClasses.sort(new Comparator<Class<?>>() {
             @Override
             public int compare(Class<?> o1, Class<?> o2) {
-                String group1 = null;
-                Annotation a1 = o1.getAnnotation(TeleOp.class);
-                if (a1 != null) group1 = ((TeleOp)a1).group();
-                else{
-                    a1 = o1.getAnnotation(Autonomous.class);
-                    if (a1 != null) group1 = ((Autonomous)a1).group();
-                }
-
-                String group2 = null;
-                Annotation a2 = o2.getAnnotation(TeleOp.class);
-                if (a2 != null) group2 = ((TeleOp)a2).group();
-                else{
-                    a2 = o2.getAnnotation(Autonomous.class);
-                    if (a2 != null) group2 = ((Autonomous)a2).group();
-                }
+                String group1 = getGroupFromAnnotationOrOpmode(o1);
+                String group2 = getGroupFromAnnotationOrOpmode(o2);
 
                 if (group1 == null) return -1;
                 else if (group2 == null) return 1;
@@ -279,14 +343,14 @@ public class VirtualRobotController {
                             setText(null);
                             return;
                         }
-                        Annotation a = cl.getAnnotation(TeleOp.class);
-                        if (a != null) setText(((TeleOp)a).group() + ": " + ((TeleOp)a).name());
-                        else {
-                            a = cl.getAnnotation(Autonomous.class);
-                            if (a != null) setText(((Autonomous)a).group() + ": "  + ((Autonomous)a).name());
-                            else setText("No Name");
-                        }
+                        String group = getGroupFromAnnotationOrOpmode(cl);
+                        String name = getNameFromAnnotationOrOpmode(cl);
 
+                        if(group.isEmpty()) {
+                            setText(name);
+                        }else{
+                            setText(group + ": " + name);
+                        }
                     }
                 };
                 return cell;
@@ -301,13 +365,7 @@ public class VirtualRobotController {
                     setText(null);
                     return;
                 }
-                Annotation a = cl.getAnnotation(TeleOp.class);
-                if (a != null) setText(((TeleOp) a).name());
-                else {
-                    a = cl.getAnnotation(Autonomous.class);
-                    if (a != null) setText(((Autonomous) a).name());
-                    else setText("No Name");
-                }
+                setText(getNameFromAnnotationOrOpmode(cl));
             }
         });
 
@@ -333,6 +391,9 @@ public class VirtualRobotController {
     @FXML
     private void handleDriverButtonAction(ActionEvent event){
         if (!opModeInitialized){
+            /*
+             * INIT has been pressed.
+             */
             if (!initOpMode()) return;
             pathLine.getPoints().clear();
             txtTelemetry.setText("");
@@ -351,7 +412,7 @@ public class VirtualRobotController {
                 @Override
                 public void run() {
                     bot.updateDisplay();
-                    pathLine.getPoints().addAll(halfFieldWidth + bot.x, halfFieldWidth - bot.y);
+                    pathLine.getPoints().addAll(halfFieldWidth + bot.getX(), halfFieldWidth - bot.getY());
                     updateTelemetryDisplay();
                 }
             };
@@ -367,21 +428,37 @@ public class VirtualRobotController {
             opModeThread.start();
         }
         else if (!opModeStarted){
+            /*
+             * START has been pressed.
+             */
             driverButton.setText("STOP");
             opModeStarted = true;
         }
         else{
+            /*
+             * STOP has been pressed. Note that it is not possible for this to happen before START is pressed.
+             */
             driverButton.setText("INIT");
             opModeInitialized = false;
+            /*
+             * Setting opModeStarted to false will:
+             *   -Cause the final loop in runOpModeAndCleanUp to exit;
+             *   -Cause opmode.Stop() to run
+             *   -In a linear opmode, the above will cause stopRequested to become true, and interrupt runOpMode thread
+             */
             opModeStarted = false;
-            //if (opModeThread.isAlive() && !opModeThread.isInterrupted()) opModeThread.interrupt();
             if (!executorService.isShutdown()) executorService.shutdown();
+            /*
+             * This should not be necessary, but...
+             */
             try{
                 opModeThread.join(500);
             } catch(InterruptedException exc) {
-                Thread.currentThread().interrupt();
+                opModeThread.interrupt();
             }
             if (opModeThread.isAlive()) System.out.println("OpMode Thread Failed to Terminate.");
+
+            bot.getHardwareMap().setActive(false);
             bot.powerDownAndReset();
             if (Config.USE_VIRTUAL_GAMEPAD) virtualGamePadController.resetGamePad();
             initializeTelemetryTextArea();
@@ -392,11 +469,17 @@ public class VirtualRobotController {
     private void runOpModeAndCleanUp(){
 
         try {
+            //Activate the hardware map, so that calls to "get" on the hardware map itself, and on dcMotor, etc,
+            //will return hardware objects
+            bot.getHardwareMap().setActive(true);
+
             //For regular opMode, run user-defined init() method. For Linear opMode, init() starts the execution of
             //runOpMode on a helper thread.
             opMode.init();
 
             while (!opModeStarted && !Thread.currentThread().isInterrupted()) {
+                // to keep the guarantee that this is updated
+                opMode.time = opMode.getRuntime();
                 //For regular opMode, run user-defined init_loop() method. For Linear opMode, init_loop checks whether
                 //runOpMode has exited; if so, it interrupts the opModeThread.
                 opMode.init_loop();
@@ -412,13 +495,17 @@ public class VirtualRobotController {
 
             }
 
-            //For regular opMode, run user-defined stop() method, if any. For Linear opMode, the start() method
+            //For regular opMode, run user-defined start() method, if any. For Linear opMode, the start() method
             //will allow waitForStart() to finish executing.
             if (!Thread.currentThread().isInterrupted()) opMode.start();
 
             while (opModeStarted && !Thread.currentThread().isInterrupted()) {
                 //For regular opMode, run user-defined loop() method. For Linear opMode, loop() checks whether
                 //runOpMode has exited; if so, it interrupts the opModeThread.
+
+                // to keep the guarantee that this is updated
+                opMode.time = opMode.getRuntime();
+
                 opMode.loop();
                 //For regular op mode only, update telemetry after each execution of loop()
                 //For linear op mode, do-nothing
@@ -441,6 +528,7 @@ public class VirtualRobotController {
             System.out.println(e.getLocalizedMessage());
         }
 
+        bot.getHardwareMap().setActive(false);
         bot.powerDownAndReset();
         if (!executorService.isShutdown()) executorService.shutdown();
         opModeInitialized = false;
@@ -526,7 +614,30 @@ public class VirtualRobotController {
             sb.append("\n Distance Sensors:");
             for (String distance : distanceSensors) sb.append("\n   " + distance);
         }
+        Set<String> digitalChannels = hardwareMap.keySet(DigitalChannel.class);
+        if (!digitalChannels.isEmpty()) {
+            sb.append("\n Digital Sensors:");
+            for (String digitalChannel : digitalChannels) sb.append("\n   " + digitalChannel);
+        }
+        Set<String> analogInputs = hardwareMap.keySet(AnalogInput.class);
+        if (!analogInputs.isEmpty()) {
+            sb.append("\n Analog Sensors:");
+            for (String analogInput : analogInputs) sb.append("\n   " + analogInput);
+        }
         txtTelemetry.setText(sb.toString());
+    }
+
+    @FXML
+    private void handleKeyEvents(KeyEvent e){
+        if (e.getEventType() == KeyEvent.KEY_PRESSED){
+            keyState.set(e.getCode(), true);
+        } else if (e.getEventType() == KeyEvent.KEY_RELEASED){
+            keyState.set(e.getCode(), false);
+        }
+    }
+
+    public boolean getKeyState(KeyCode code){
+        return keyState.get(code);
     }
 
     public class ColorSensorImpl implements ColorSensor {
@@ -566,50 +677,50 @@ public class VirtualRobotController {
     }
 
     public class DistanceSensorImpl implements DistanceSensor {
-        private double distanceMM = distanceOutOfRange;
+
+        private final double readingWhenOutOfRangeMM = 8200;
+        private double distanceMM = readingWhenOutOfRangeMM;
         private static final double MIN_DISTANCE = 50; //mm
         private static final double MAX_DISTANCE = 1000; //mm
         private static final double MAX_OFFSET = 7.0 * Math.PI / 180.0;
 
+        private final double X_MIN, X_MAX, Y_MIN, Y_MAX;    //Need these to constrain field
+
+        public DistanceSensorImpl(){
+            X_MIN = 2.0 * (Config.X_MIN_FRACTION - 0.5) * halfFieldWidth;
+            X_MAX = 2.0 * (Config.X_MAX_FRACTION - 0.5) * halfFieldWidth;
+            Y_MIN = 2.0 * (Config.Y_MIN_FRACTION - 0.5) * halfFieldWidth;
+            Y_MAX = 2.0 * (Config.Y_MAX_FRACTION - 0.5) * halfFieldWidth;
+        }
+
         public synchronized double getDistance(DistanceUnit distanceUnit){
             double result;
             if (distanceMM < MIN_DISTANCE) result = MIN_DISTANCE - 1.0;
-            else if (distanceMM > MAX_DISTANCE) result = distanceOutOfRange;
+            else if (distanceMM > MAX_DISTANCE) result = readingWhenOutOfRangeMM;
             else result = distanceMM;
-            switch(distanceUnit){
-                case METER:
-                    return result / 1000.0;
-                case CM:
-                    return result / 10.0;
-                case MM:
-                    return result;
-                case INCH:
-                    return result / 25.4;
-                default:
-                    return result;
-            }
+            return distanceUnit.fromMm(result);
         }
 
         public synchronized void updateDistance(double x, double y, double headingRadians){
             final double mmPerPixel = 144.0 * 25.4 / fieldWidth;
             final double piOver2 = Math.PI / 2.0;
             double temp = headingRadians / piOver2;
-            int side = (int)Math.round(temp); //-2, -1 ,0, 1, or 2 (2 and -2 both refer to the right side)
+            int side = (int)Math.round(temp); //-2, -1 ,0, 1, or 2 (2 and -2 both refer to the bottom)
             double offset = Math.abs(headingRadians - (side * Math.PI / 2.0));
-            if (offset > MAX_OFFSET) distanceMM = distanceOutOfRange;
+            if (offset > MAX_OFFSET) distanceMM = readingWhenOutOfRangeMM;
             else switch (side){
                 case 2:
                 case -2:
-                    distanceMM = (y + halfFieldWidth) * mmPerPixel;
+                    distanceMM = (y - Y_MIN) * mmPerPixel;                  //BOTTOM
                     break;
                 case -1:
-                    distanceMM = (halfFieldWidth - x) * mmPerPixel;
+                    distanceMM = (X_MAX - x) * mmPerPixel;         //RIGHT
                     break;
                 case 0:
-                    distanceMM = (halfFieldWidth - y) * mmPerPixel;
+                    distanceMM = (Y_MAX - y) * mmPerPixel;         //TOP
                     break;
                 case 1:
-                    distanceMM = (x + halfFieldWidth) * mmPerPixel;
+                    distanceMM = (x - X_MIN) * mmPerPixel;         //LEFT
                     break;
             }
         }
@@ -620,10 +731,10 @@ public class VirtualRobotController {
      * Base class for OpMode.
      */
     public class OpModeBase {
-        protected final HardwareMap hardwareMap;
-        protected final GamePad gamepad1;
-        protected final GamePad gamepad2;
-        protected final Telemetry telemetry;
+        public final HardwareMap hardwareMap;
+        public final Gamepad gamepad1;
+        public final Gamepad gamepad2;
+        public final Telemetry telemetry;
 
         public OpModeBase() {
             hardwareMap = VirtualRobotController.this.hardwareMap;
@@ -636,7 +747,8 @@ public class VirtualRobotController {
     public class TelemetryImpl implements Telemetry {
 
         public TelemetryImpl(){
-            update();
+            data.setLength(0);
+            setText(data.toString());
         }
 
         /**
@@ -657,17 +769,19 @@ public class VirtualRobotController {
          * @param data The data for this telemetry entry.
          */
         public void addData(String caption, Object data){
-            this.data.append(caption + ":" + data.toString() + "\n");
+            this.data.append(caption + ": " + data.toString() + "\n");
         }
 
 
         /**
          * Replace any data currently displayed on telemetry with all data that has been added since the previous call to
-         * update().
+         * update(). Note: if no data has been added, this method does nothing.
          */
         public void update(){
-            setText(data.toString());
-            data.setLength(0);
+            if (data.length() > 0) {
+                setText(data.toString());
+                data.setLength(0);
+            }
         }
 
         private void setText(String text){

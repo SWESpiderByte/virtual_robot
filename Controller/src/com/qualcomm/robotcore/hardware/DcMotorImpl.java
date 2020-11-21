@@ -1,5 +1,8 @@
 package com.qualcomm.robotcore.hardware;
 
+import com.qualcomm.robotcore.hardware.configuration.MotorType;
+import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
+
 import java.util.Random;
 
 /**
@@ -7,6 +10,7 @@ import java.util.Random;
  */
 public class DcMotorImpl implements DcMotor {
     public final MotorType MOTOR_TYPE;
+    public final MotorConfigurationType MOTOR_CONFIGURATION_TYPE;
 
     //Proportionate coefficient for RUN_TO_POSITION mode
     private final double COEFF_PROPORTIONATE = 5.0;
@@ -43,6 +47,7 @@ public class DcMotorImpl implements DcMotor {
      */
     public DcMotorImpl(MotorType motorType){
         MOTOR_TYPE = motorType;
+        MOTOR_CONFIGURATION_TYPE = new MotorConfigurationType(motorType);
     }
 
     /**
@@ -129,6 +134,11 @@ public class DcMotorImpl implements DcMotor {
             speed = speed + (1.0 - inertia) * (power - speed);
         }
         double positionChange = speed * MOTOR_TYPE.MAX_TICKS_PER_SECOND * milliseconds / 1000.0;
+        /*
+         * Apply error to position change: for a given motor object the systematic error remains the same
+         * until it is changed by a call to setSystematicErrorFrac. The random error is multiplied during
+         * each update cycle by a different random number with gaussian distribution.
+         */
         positionChange *= (1.0 + systematicErrorFrac + randomErrorFrac * random.nextGaussian());
         if (direction == Direction.FORWARD && MOTOR_TYPE.REVERSED ||
                 direction == Direction.REVERSE && !MOTOR_TYPE.REVERSED) positionChange = -positionChange;
@@ -197,6 +207,10 @@ public class DcMotorImpl implements DcMotor {
 
     public synchronized ZeroPowerBehavior getZeroPowerBehavior(){
         return this.zeroPowerBehavior;
+    }
+
+    public MotorConfigurationType getMotorType(){
+        return MOTOR_CONFIGURATION_TYPE;
     }
 
 }
